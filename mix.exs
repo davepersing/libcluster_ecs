@@ -23,7 +23,8 @@ defmodule Cluster.Strategy.ECS.MixProject do
     [
       {:libcluster, "~> 2.1"},
       {:ex_aws, "~> 2.0"},
-      {:ex_aws_ecs, "~> 0.1.1"}
+      {:ex_aws_ecs, "~> 0.1.1"},
+      {:hackney, "~> 1.9"}
     ]
   end
 end
