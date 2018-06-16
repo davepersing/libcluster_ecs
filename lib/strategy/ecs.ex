@@ -9,6 +9,7 @@ defmodule Cluster.Strategy.ECS do
   * `task_arn` - ARN of the task definition running in your cluster (required; e.g. "arn:aws:ecs:us-west-2:01234567890:task/f1234567-1234-5678-1111-123456789012")
   * `node_sname` - The short name of the nodes you want to connect to (required; e.g. "my-app")
   * `poll_interval` - How often to poll in milliseconds (optional; default: 5_000)
+  * `aws_region` - AWS Region to perform the request in (optional; default: us-east-1)
 
   ## Usage
 
@@ -34,6 +35,7 @@ defmodule Cluster.Strategy.ECS do
   alias ExAws.ECS
 
   @default_poll_interval 5_000
+  @default_aws_region "us-east-1"
 
   def start_link(opts) do
     GenServer.start_link(__MODULE__, opts)
@@ -50,10 +52,11 @@ defmodule Cluster.Strategy.ECS do
 
     cluster_arn = Keyword.fetch!(state.config, :cluster_arn)
     task_arn = Keyword.fetch!(state.config, :task_arn)
+    aws_region = Keyword.get(state.config, :aws_region, @default_aws_region)
     node_sname = Keyword.fetch!(state.config, :node_sname)
     poll_interval = Keyword.get(state.config, :poll_interval, @default_poll_interval)
 
-    state = %{state | meta: {poll_interval, cluster_arn, task_arn, node_sname}}
+    state = %{state | meta: {poll_interval, cluster_arn, task_arn, aws_region, node_sname}}
 
     info(state.topology, "starting ecs polling for #{cluster_arn} / #{task_arn}")
 
@@ -64,7 +67,7 @@ defmodule Cluster.Strategy.ECS do
   def handle_info(:poll, state), do: {:noreply, do_poll(state)}
   def handle_info(_, state), do: {:noreply, state}
 
-  defp do_poll(%State{meta: {poll_interval, cluster_arn, task_arn, node_sname}} = state) do
+  defp do_poll(%State{meta: {poll_interval, cluster_arn, task_arn, aws_region, node_sname}} = state) do
     debug(state.topology, "Polling ECS cluster [#{cluster_arn}] for task: [#{task_arn}]...")
 
     me = node()
@@ -72,7 +75,7 @@ defmodule Cluster.Strategy.ECS do
     nodes =
       cluster_arn
       |> ECS.describe_tasks(List.wrap(task_arn))
-      |> ExAws.request!()
+      |> ExAws.request!(region: aws_region)
       |> Map.get("tasks")
       |> Enum.filter(fn t -> t["taskArn"] == task_arn && t["healthStatus"] == "HEALTHY" end)
       |> Enum.map(fn t -> t["containers"] end)
