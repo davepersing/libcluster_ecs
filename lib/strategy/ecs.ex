@@ -86,7 +86,7 @@ defmodule Cluster.Strategy.ECS do
       |> Enum.map(&format_address(&1, node_sname))
       |> Enum.reject(fn n -> n == me end)
 
-    debug(state.topology, "Found nodes: #{nodes}")
+    debug(state.topology, "Found nodes: #{inspect(nodes)}")
 
     Cluster.Strategy.connect_nodes(state.topology, state.connect, state.list_nodes, nodes)
 
