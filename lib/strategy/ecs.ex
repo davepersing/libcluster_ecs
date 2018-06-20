@@ -97,6 +97,6 @@ defmodule Cluster.Strategy.ECS do
   end
 
   defp format_address(ip_addr, node_sname) do
-    "#{node_sname}@#{ip_addr}"
+    :"#{node_sname}@#{ip_addr}"
   end
 end
