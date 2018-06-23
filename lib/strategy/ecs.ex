@@ -6,7 +6,6 @@ defmodule Cluster.Strategy.ECS do
   ## Options
 
   * `cluster_arn` - ARN of the cluster running your tasks (required; e.g. "arn:aws:ecs:us-west-2:01234567890:cluster/my-cluster")
-  * `task_arn` - ARN of the task definition running in your cluster (required; e.g. "arn:aws:ecs:us-west-2:01234567890:task/f1234567-1234-5678-1111-123456789012")
   * `node_sname` - The short name of the nodes you want to connect to (required; e.g. "my-app")
   * `poll_interval` - How often to poll in milliseconds (optional; default: 5_000)
   * `aws_region` - AWS Region to perform the request in (optional; default: us-east-1)
@@ -20,7 +19,6 @@ defmodule Cluster.Strategy.ECS do
             config: [
               poll_interval: 5_000,
               cluster_arn: "arn:aws:ecs:us-west-2:01234567890:cluster/my-cluster",
-              task_arn: "arn:aws:ecs:us-west-2:01234567890:task/f1234567-1234-5678-1111-123456789012",
               node_sname: "my-app"
             ]
           ]
@@ -51,14 +49,13 @@ defmodule Cluster.Strategy.ECS do
     }
 
     cluster_arn = Keyword.fetch!(state.config, :cluster_arn)
-    task_arn = Keyword.fetch!(state.config, :task_arn)
     aws_region = Keyword.get(state.config, :aws_region, @default_aws_region)
     node_sname = Keyword.fetch!(state.config, :node_sname)
     poll_interval = Keyword.get(state.config, :poll_interval, @default_poll_interval)
 
-    state = %{state | meta: {poll_interval, cluster_arn, task_arn, aws_region, node_sname}}
+    state = %{state | meta: {poll_interval, cluster_arn, aws_region, node_sname}}
 
-    info(state.topology, "starting ecs polling for #{cluster_arn} / #{task_arn}")
+    info(state.topology, "Starting ECS polling for #{cluster_arn}")
 
     {:ok, do_poll(state)}
   end
@@ -67,8 +64,8 @@ defmodule Cluster.Strategy.ECS do
   def handle_info(:poll, state), do: {:noreply, do_poll(state)}
   def handle_info(_, state), do: {:noreply, state}
 
-  defp do_poll(%State{meta: {poll_interval, cluster_arn, task_arn, aws_region, node_sname}} = state) do
-    debug(state.topology, "Polling ECS cluster [#{cluster_arn}] for task: [#{task_arn}]...")
+  defp do_poll(%State{meta: {poll_interval, cluster_arn, aws_region, node_sname}} = state) do
+    debug(state.topology, "Polling ECS cluster [#{cluster_arn}]...")
 
     tasks = list_tasks(cluster_arn, aws_region, state)
 
@@ -84,7 +81,7 @@ defmodule Cluster.Strategy.ECS do
     # reschedule a call to itself in poll_interval ms
     Process.send_after(self(), :poll, poll_interval)
 
-    %{state | meta: {poll_interval, cluster_arn, task_arn, aws_region, node_sname}}
+    %{state | meta: {poll_interval, cluster_arn, aws_region, node_sname}}
   end
 
   defp format_address(ip_addr, node_sname) do
