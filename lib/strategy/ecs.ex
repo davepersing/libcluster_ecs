@@ -70,21 +70,12 @@ defmodule Cluster.Strategy.ECS do
   defp do_poll(%State{meta: {poll_interval, cluster_arn, task_arn, aws_region, node_sname}} = state) do
     debug(state.topology, "Polling ECS cluster [#{cluster_arn}] for task: [#{task_arn}]...")
 
-    me = node()
+    tasks = list_tasks(cluster_arn, aws_region, state)
 
     nodes =
       cluster_arn
-      |> ECS.describe_tasks(List.wrap(task_arn))
-      |> ExAws.request!(region: aws_region)
-      |> Map.get("tasks")
-      |> Enum.filter(fn t -> t["taskArn"] == task_arn && t["healthStatus"] == "HEALTHY" end)
-      |> Enum.map(fn t -> t["containers"] end)
-      |> List.flatten()
-      |> Enum.map(fn t -> t["networkInterfaces"] end)
-      |> List.flatten()
-      |> Enum.map(fn t -> t["privateIpv4Address"] end)
-      |> Enum.map(&format_address(&1, node_sname))
-      |> Enum.reject(fn n -> n == me end)
+      |> describe_tasks(aws_region, tasks, state)
+      |> filter_tasks(node_sname, state)
 
     debug(state.topology, "Found nodes: #{inspect(nodes)}")
 
@@ -98,5 +89,37 @@ defmodule Cluster.Strategy.ECS do
 
   defp format_address(ip_addr, node_sname) do
     :"#{node_sname}@#{ip_addr}"
+  end
+
+  defp list_tasks(cluster_arn, aws_region, state) do
+    debug(state.topology, "Listing tasks for #{cluster_arn}")
+
+    cluster_arn
+    |> ECS.list_tasks()
+    |> ExAws.request!(region: aws_region)
+    |> Map.get("taskArns")
+  end
+
+  defp describe_tasks(cluster_arn, aws_region, tasks, state) do
+    debug(state.topology, "Describe tasks for #{cluster_arn}")
+
+    cluster_arn
+    |> ECS.describe_tasks(tasks)
+    |> ExAws.request!(region: aws_region)
+    |> Map.get("tasks")
+  end
+
+  defp filter_tasks(tasks, node_sname, state) do
+    debug(state.topology, "Filtering [#{inspect(tasks)}]")
+
+    me = node()
+
+    tasks
+    |> Enum.filter(fn t -> t["healthStatus"] == "HEALTHY" end)
+    |> Enum.flat_map(fn t -> Map.get(t, "containers") end)
+    |> Enum.flat_map(fn network_list -> Map.get(network_list, "networkInterfaces") end)
+    |> Enum.map(fn ip_list -> Map.get(ip_list, "privateIpv4Address") end)
+    |> Enum.map(&format_address(&1, node_sname))
+    |> Enum.reject(&(&1 == me))
   end
 end
