@@ -93,7 +93,7 @@ defmodule Cluster.Strategy.ECS do
     # reschedule a call to itself in poll_interval ms
     Process.send_after(self(), :poll, poll_interval)
 
-    %{state | meta: {poll_interval, cluster_arn, task_arn, aws_region, node_sname, nodes}}
+    %{state | meta: {poll_interval, cluster_arn, task_arn, aws_region, node_sname}}
   end
 
   defp format_address(ip_addr, node_sname) do
